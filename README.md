@@ -7,8 +7,8 @@
 ・ステータス表示: Bot のステータス欄に現在の人数を表示。
 ・リモートコマンド: Discord からマイクラ内へコマンドを送信可能（管理者限定）。
 # 準備するもの
-Node.js (LTS版を推奨)
-Discord Bot のトークン類 (Discord Developer Portal から取得)
+Node.js  https://nodejs.org/ja/download
+Discord Bot   https://discord.com/developers/applications
 
 # 使い方
 1. 設定ファイルの作成
