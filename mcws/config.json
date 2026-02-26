@@ -1,0 +1,8 @@
+{
+  "TOKEN": "ここにDiscordBotのトークンを入れる",
+  "CHANNEL_ID": "ここに連携先のチャンネルIDを入れる",
+  "CLIENT_ID": "ここにBotのクライアントIDを入れる",
+  "GUILD_ID": "ここにサーバーIDを入れる",
+  "WSS_PORT": 19132,
+  "ADMIN_IDS": ["あなたのDiscordユーザーID"]
+}
