@@ -1,9 +1,10 @@
+// create by hika0908
+
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, ActivityType } = require('discord.js');
 const { WebSocketServer } = require('ws');
 const crypto = require('crypto');
 const fs = require('fs');
 
-// 設定ファイルの読み込み
 const config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
 const { TOKEN, CHANNEL_ID, CLIENT_ID, GUILD_ID, WSS_PORT, ADMIN_IDS } = config;
 
@@ -56,7 +57,7 @@ function sendMCCommand(ws, command, requestId) {
     }));
 }
 
-client.on('ready', () => { // clientReadyをreadyに修正
+client.on('ready', () => {
     console.log(`✅ Log in: ${client.user.tag}`);
     updateStatus();
 });
@@ -95,14 +96,13 @@ client.on('interactionCreate', async (interaction) => {
             const monitorInterval = setInterval(() => {
                 if (ws.readyState !== 1) return clearInterval(monitorInterval);
                 idleCounter++;
-                // 節約設定：誰もいない時は約1分(20回)に1回、いる時は3秒(1回)に1回
                 const checkInterval = currentPlayers.length > 0 ? 1 : 20; 
                 if (idleCounter >= checkInterval) {
                     sendMCCommand(ws, "list", "sync-list");
                     sendMCCommand(ws, "geteduclientinfo", "sync-world");
                     idleCounter = 0;
                 }
-            }, 3000); 
+            }, 500); 
 
             ws.on('message', (data) => {
                 try {
@@ -173,3 +173,5 @@ client.on('messageCreate', (msg) => {
 });
 
 client.login(TOKEN);
+
+// create by hika0908
