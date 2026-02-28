@@ -10,28 +10,13 @@
 /memo view	保存されたメモ一覧を表示します
 /command	マイクラにコマンドを送信します（管理者限定）
 
-## 準備するもの
-Node.js  https://nodejs.org/ja/download
-Discord Bot   https://discord.com/developers/applications
+/help　コマンドのヘルプを表示します
+/ping　ワールドとbot間の通信速度を表示します
+/info　コマンド実行時のbotのステータスを表示します
 
 ## 使い方
-1. 設定ファイルの作成
-config.json を右クリックして編集し、各項目を入力してください。
-TOKEN: Bot のトークン
-CHANNEL_ID: 送信先のチャンネル ID
-CLIENT_ID: Bot のアプリケーション ID
-GUILD_ID: サーバーの ID
-ADMIN_IDS: 管理者のユーザー ID (例: ["123456789"])
-
-2. セットアップ (初回のみ)
-setup.bat をダブルクリックして、ライブラリをインストールします。
-
-3. 起動
-start.bat をダブルクリックして Bot を起動します。
-
-4. マイクラとの接続
-Discord で /start コマンドを打ちます。
-マイクラ内で /connect localhost:19132 と入力します。
+noteにて解説しています、こちらをご覧ください
+https://note.com/hika_0908/n/n290401c07e1b
 
 ## 注意
 /connect を実行したプレイヤーの周囲のチャットしか取得できない場合があります。全員分取得したい場合は、ホスト（サーバー主）が接続することをお勧めします。
