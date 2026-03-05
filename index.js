@@ -222,6 +222,19 @@ client.on('interactionCreate', async (interaction) => {
                         }
                     }
 
+                    // Fallback for normal chat events where sender/message are separated in the payload.
+                    if ((!sender || !content) && (isChatEvent || isTextEvent)) {
+                        const bodySender = (body.sender || body.properties?.Sender || "").trim();
+                        const bodyMessage = (body.message || body.properties?.Message || "").trim();
+                        if (bodySender && bodyMessage) {
+                            sender = bodySender;
+                            content = bodyMessage.replace(/^<(.+?)>\s*/, "").trim();
+                        } else if (bodySender && cleanMsg) {
+                            sender = bodySender;
+                            content = cleanMsg.replace(/^<(.+?)>\s*/, "").trim();
+                        }
+                    }
+
                     if (!sender || !content) return;
 
                     const cacheKey = `${sender}:${content}`;
@@ -298,4 +311,5 @@ client.on('messageCreate', (msg) => {
 });
 
 client.login(TOKEN);
+
 
