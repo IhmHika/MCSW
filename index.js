@@ -1,4 +1,4 @@
-console.log('\x1b[36m%s\x1b[0m', `
+﻿console.log('\x1b[36m%s\x1b[0m', `
 ##############################################
 #                                            #
 #   __  __   _____  __          __   _____   #
@@ -18,7 +18,6 @@ const { WebSocketServer } = require('ws');
 const crypto = require('crypto');
 const fs = require('fs');
 
-// 設定読み込み
 let config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
 const { TOKEN, WSS_PORT, ADMIN_IDS } = config;
 
@@ -37,10 +36,8 @@ let maxPlayers = "0";
 let worldName = "Minecraft World";
 let isInitialSync = true;
 
-// 重複排除用キャッシュ
 const messageCache = new Set();
 
-// メモ・ログ用関数
 const getMemos = () => JSON.parse(fs.readFileSync('./memos.json', 'utf8'));
 const saveMemos = (m) => fs.writeFileSync('./memos.json', JSON.stringify(m, null, 2), 'utf8');
 if (!fs.existsSync('./memos.json')) fs.writeFileSync('./memos.json', '[]', 'utf8');
@@ -57,7 +54,6 @@ function stopServer() {
     updateStatus();
 }
 
-// Slashコマンド定義
 const commands = [
     new SlashCommandBuilder().setName('start').setDescription('Start WebSocket server'),
     new SlashCommandBuilder().setName('stop').setDescription('Stop WebSocket server'),
@@ -116,7 +112,6 @@ function sendMCCommand(ws, command, requestId) {
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
     
-    // 基本コマンド
     if (interaction.commandName === 'ping') return await interaction.reply({ content: `Latency: ${client.ws.ping}ms`, ephemeral: true });
     
     if (interaction.commandName === 'help') {
@@ -140,7 +135,6 @@ client.on('interactionCreate', async (interaction) => {
         return await interaction.reply({ embeds: [infoEmbed] });
     }
 
-    // チャンネル設定
     if (interaction.commandName === 'channel') {
         if (!ADMIN_IDS.includes(interaction.user.id)) return interaction.reply({ content: 'No permission', ephemeral: true });
         const action = interaction.options.getString('action');
@@ -154,8 +148,6 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.reply({ embeds: [new EmbedBuilder().setDescription('Channel setting removed.').setColor(0xe67e22)] });
         }
     }
-
-    // WebSocket サーバー起動
     if (interaction.commandName === 'start') {
         if (!config.CHANNEL_ID) return interaction.reply({ content: 'Channel not set.', ephemeral: true });
         if (wss) return interaction.reply({ content: 'Already running', ephemeral: true });
@@ -180,8 +172,22 @@ client.on('interactionCreate', async (interaction) => {
                 try {
                     const { header, body } = JSON.parse(data);
                     const channel = client.channels.cache.get(config.CHANNEL_ID);
+                    const eventName = header?.eventName || "";
+                    const isChatEvent = eventName === "PlayerMessage" || eventName === "ChatMessage";
+                    const isTextEvent = eventName === "Text";
+
+                    if (header.requestId === "sync-list") {
+                        const m = body.statusMessage?.match(/(\d+)\/(\d+)/);
+                        if (m) maxPlayers = m[2];
+                        const newP = body.statusMessage?.split(/:\s*/)[1]?.split(', ').map(n => n.trim()).filter(n => n !== "") || [];
+                        if (!isInitialSync) {
+                            newP.forEach(p => { if (!currentPlayers.includes(p)) channel?.send({ embeds: [new EmbedBuilder().setDescription(`**${p}** join (${newP.length}/${maxPlayers})`).setColor(0x57f287)] }); });
+                            currentPlayers.forEach(p => { if (!newP.includes(p)) channel?.send({ embeds: [new EmbedBuilder().setDescription(`**${p}** left (${newP.length}/${maxPlayers})`).setColor(0xed4245)] }); });
+                        }
+                        currentPlayers = newP; isInitialSync = false; updateStatus();
+                        return;
+                    }
                     
-                    // 解析可能なテキストがあるか確認
                     let rawMsg = body.message || body.properties?.Message || "";
                     if (rawMsg.startsWith('{')) {
                         try {
@@ -189,17 +195,11 @@ client.on('interactionCreate', async (interaction) => {
                             if (parsed.rawtext) rawMsg = parsed.rawtext.map(i => i.text).join("");
                         } catch (e) {}
                     }
-                    let cleanMsg = rawMsg.replace(/§./g, "").trim();
+                    let cleanMsg = rawMsg.replace(/\u00A7./g, "").trim();
 
-                    // 除外判定
-                    if (!cleanMsg || cleanMsg.includes('[Discord]') || cleanMsg.includes('[TEAM]') || cleanMsg.startsWith('/')) return;
-
-                    // 重複排除ロジック
-                    if (messageCache.has(cleanMsg)) return;
-                    messageCache.add(cleanMsg);
-                    setTimeout(() => messageCache.delete(cleanMsg), 1500);
-
-                    // 1. 入退出ログの判定 (バニラとアドオンカスタム両対応)
+                    if (!cleanMsg || cleanMsg.includes('[Discord]') || cleanMsg.startsWith('/')) return;
+                    if (!isChatEvent && !isTextEvent) return;
+                    if (/[\r\n]/.test(cleanMsg)) return;
                     const isJoin = cleanMsg.includes("joined the game") || cleanMsg.includes("Join:");
                     const isLeft = cleanMsg.includes("left the game") || cleanMsg.includes("Left:");
                     if (isJoin || isLeft) {
@@ -208,31 +208,30 @@ client.on('interactionCreate', async (interaction) => {
                         return;
                     }
 
-                    // 2. チャットの解析
-                    const match = cleanMsg.match(/^<(.*?)>\s*(.*)/);
-                    if (match) {
-                        const user = match[1].trim();
-                        const content = match[2].trim();
-                        channel?.send(`<${user}> ${content}`);
-                        saveLog(`[MC] <${user}> ${content}`);
-                    } else if (body.sender && body.sender !== "Server" && body.sender !== "External") {
-                        const sender = body.sender.replace(/§./g, "");
-                        channel?.send(`<${sender}> ${cleanMsg}`);
-                        saveLog(`[MC] <${sender}> ${cleanMsg}`);
+                    let sender = "";
+                    let content = "";
+                    const bracketChat = cleanMsg.match(/^<(.+?)>\s+(.+)$/);
+                    if (bracketChat) {
+                        sender = bracketChat[1].trim();
+                        content = bracketChat[2].trim();
+                    } else {
+                        const jpChat = cleanMsg.match(/^<(.+?)>\s*\(チャット\)\s*(.+)$/);
+                        if (jpChat) {
+                            sender = jpChat[1].trim();
+                            content = jpChat[2].trim();
+                        }
                     }
 
-                    // プレイヤーリスト同期用
-                    if (header.requestId === "sync-list") {
-                        const m = body.statusMessage?.match(/(\d+)\/(\d+)/);
-                        if (m) maxPlayers = m[2];
-                        const newP = body.statusMessage?.split(/:\s*/)[1]?.split(', ').map(n => n.trim()).filter(n => n !== "") || [];
-                        // バニラ環境用の入退出通知ロジック (アドオンがない場合も動作)
-                        if (!isInitialSync) {
-                            newP.forEach(p => { if (!currentPlayers.includes(p)) channel?.send({ embeds: [new EmbedBuilder().setDescription(`**${p}** join (${newP.length}/${maxPlayers})`).setColor(0x57f287)] }); });
-                            currentPlayers.forEach(p => { if (!newP.includes(p)) channel?.send({ embeds: [new EmbedBuilder().setDescription(`**${p}** left (${newP.length}/${maxPlayers})`).setColor(0xed4245)] }); });
-                        }
-                        currentPlayers = newP; isInitialSync = false; updateStatus();
-                    }
+                    if (!sender || !content) return;
+
+                    const cacheKey = `${sender}:${content}`;
+                    if (messageCache.has(cacheKey)) return;
+                    messageCache.add(cacheKey);
+                    setTimeout(() => messageCache.delete(cacheKey), 1500);
+
+                    channel?.send(`<${sender}> ${content}`);
+                    saveLog(`[MC] <${sender}> ${content}`);
+
                 } catch (e) { }
             });
 
@@ -242,8 +241,6 @@ client.on('interactionCreate', async (interaction) => {
             });
         });
     }
-
-    // 停止・リスト・メモ・ログ・コマンド送信
     if (interaction.commandName === 'stop') { stopServer(); await interaction.reply({ embeds: [new EmbedBuilder().setTitle('Stopped').setColor(0x34495e)] }); }
     
     if (interaction.commandName === 'list') {
@@ -294,7 +291,6 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// Discord 側からの送信
 client.on('messageCreate', (msg) => {
     if (msg.author.bot || msg.channel.id !== config.CHANNEL_ID || !mcConnection || msg.content.startsWith('/')) return;
     saveLog(`[DISCORD] <${msg.author.username}> ${msg.content}`);
@@ -302,3 +298,4 @@ client.on('messageCreate', (msg) => {
 });
 
 client.login(TOKEN);
+
